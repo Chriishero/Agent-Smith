@@ -8,7 +8,7 @@ from mcp.client import ClientSession
 @contextlib.asynccontextmanager
 async def stdio_session(
     command: str, args: List[str]
-        ) -> AsyncGenerator[ClientSession]:
+        ) -> AsyncGenerator[ClientSession, None]:
     server = StdioServerParameters(command=command, args=args)
     async with stdio_client(server=server) as (read_stream, write_stream):
         async with ClientSession(read_stream, write_stream) as session:

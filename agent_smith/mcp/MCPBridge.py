@@ -5,20 +5,22 @@ import asyncio
 from asyncio import AbstractEventLoop
 import threading
 
-from agent_smith.mcp.client import call_tool
+from agent_smith.mcp.client import call_tool, list_tools
+from agent_smith.mcp.stdio_session import stdio_session
 
 
 class MCPBridge(BaseModel):
-    commands: str = Field(min_length=1)
-    args: List[str]
+    command: str = Field(min_length=1)
+    args: List[str] = Field(min_length=1)
 
     __thread: threading.Thread = PrivateAttr()
-    __session: AsyncGenerator[ClientSession] = PrivateAttr()
-    __tools: Optional[Dict[str, Callable]] = PrivateAttr(default_factory=dict)
+    __loop: AbstractEventLoop = PrivateAttr()
+    __session: ClientSession = PrivateAttr()
+    __tools: Dict[str, Callable] = PrivateAttr(default_factory=dict)
 
     @model_validator(mode="after")
     def validator(self) -> "MCPBridge":
-        self.___thread = threading.Thread(target=self.__start)
+        self.__thread = threading.Thread(target=self.__thread_function)
         self.__thread.start()
         return self
 
@@ -26,18 +28,45 @@ class MCPBridge(BaseModel):
     def tools(self) -> Optional[Dict[str, Callable]]:
         return self.__tools
 
-    def __thread(self):
+    def __thread_function(self) -> None:
         try:
-			asyncio.run(self.__start())
+            self.__loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.__loop)
+            self.__loop.run_until_complete(self.__start())
         except Exception as e:
-			print(e)
+            print(e)
 
-	def __make(self, name: str, **kwargs) -> Callable:
-        def wrapper(name: str, **kwargs) -> str:
-			
+    async def __start(self) -> None:
+        async with stdio_session(self.command, self.args) as session:
+            self.__session = session
+            tools = await session.list_tools()
+            for tool in tools.tools:
+                name = tool.name
+                ordre = tool.input_schema["required"]
+                doc = tool.description
+                self.__tools[name] = self.__make(name, ordre, doc)
+
+    def __make(
+            self, name: str, ordre: List[str], doc: Optional[str]
+            ) -> Callable:
+        def wrapper(*args, **kwargs) -> str:
+            params = dict(zip(ordre, args))
+            params.update(**kwargs)
+            return self.__call(name=name, **params)
+        wrapper.__name__ = name
+        wrapper.__doc__ = doc
+
+        return wrapper
 
     def __call(self, name: str, **kwargs) -> str:
-        result = self.__session.call_tool(name=name, params=kwargs)
+        print("create corroutien")
+        coroutine = self.__session.call_tool(
+            name=name, arguments=kwargs
+        )
+        print("create future")
+        future = asyncio.run_coroutine_threadsafe(coroutine, self.__loop)
+        print("result")
+        result = future.result(timeout=5)
+        if result.is_error is True:
+            raise RuntimeError(result)
         return "".join([c.text for c in result.content if hasattr(c, "text")])
-        
-        
