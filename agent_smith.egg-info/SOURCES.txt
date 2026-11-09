@@ -1,0 +1,8 @@
+README.md
+pyproject.toml
+agent_smith.egg-info/PKG-INFO
+agent_smith.egg-info/SOURCES.txt
+agent_smith.egg-info/dependency_links.txt
+agent_smith.egg-info/entry_points.txt
+agent_smith.egg-info/requires.txt
+agent_smith.egg-info/top_level.txt

@@ -1,0 +1,4 @@
+argparse>=1.4.0
+dotenv
+mcp[cli]>=2.3.0
+pydantic>=2.13.5

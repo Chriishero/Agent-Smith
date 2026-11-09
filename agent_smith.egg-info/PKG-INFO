@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: agent-smith
+Version: 0.1.0
+Summary: Add your description here
+Requires-Python: ==3.10.*
+Description-Content-Type: text/markdown
+Requires-Dist: argparse>=1.4.0
+Requires-Dist: dotenv
+Requires-Dist: mcp[cli]>=2.3.0
+Requires-Dist: pydantic>=2.13.5

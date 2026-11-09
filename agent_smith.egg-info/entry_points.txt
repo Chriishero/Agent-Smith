@@ -1,0 +1,2 @@
+[console_scripts]
+sandbox = agent_smith.sandbox.cli:main
