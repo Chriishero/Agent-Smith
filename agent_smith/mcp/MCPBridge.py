@@ -14,14 +14,22 @@ class MCPBridge(BaseModel):
     args: List[str] = Field(min_length=1)
 
     __thread: threading.Thread = PrivateAttr()
+    __ready: threading.Event = PrivateAttr()
+    __stop: asyncio.Event = PrivateAttr()
+    __error: str = PrivateAttr()
     __loop: AbstractEventLoop = PrivateAttr()
     __session: ClientSession = PrivateAttr()
     __tools: Dict[str, Callable] = PrivateAttr(default_factory=dict)
 
     @model_validator(mode="after")
     def validator(self) -> "MCPBridge":
+        self.__ready = threading.Event()
         self.__thread = threading.Thread(target=self.__thread_function)
         self.__thread.start()
+        if not self.__ready.wait(30):
+            raise RuntimeError("MCP server did not start.")
+        if self.__error is not None:
+            raise RuntimeError(f"MCP server failed to start: {self.__error}")
         return self
 
     @property
@@ -34,9 +42,11 @@ class MCPBridge(BaseModel):
             asyncio.set_event_loop(self.__loop)
             self.__loop.run_until_complete(self.__start())
         except Exception as e:
-            print(e)
+            self.__error = f"{type(e).__name__}: {e}"
+            self.__ready.set()
 
     async def __start(self) -> None:
+        self.__stop = asyncio.Event()
         async with stdio_session(self.command, self.args) as session:
             self.__session = session
             tools = await session.list_tools()
@@ -45,6 +55,8 @@ class MCPBridge(BaseModel):
                 ordre = tool.input_schema["required"]
                 doc = tool.description
                 self.__tools[name] = self.__make(name, ordre, doc)
+            self.__ready.set()
+            await self.__stop.wait()
 
     def __make(
             self, name: str, ordre: List[str], doc: Optional[str]
@@ -66,7 +78,11 @@ class MCPBridge(BaseModel):
         print("create future")
         future = asyncio.run_coroutine_threadsafe(coroutine, self.__loop)
         print("result")
-        result = future.result(timeout=5)
+        result = future.result(timeout=60)
         if result.is_error is True:
             raise RuntimeError(result)
         return "".join([c.text for c in result.content if hasattr(c, "text")])
+
+    def close(self) -> None:
+        if self.__loop is not None and self.__stop is not None:
+            self.__loop.call_soon_threadsafe(self.__stop.set)

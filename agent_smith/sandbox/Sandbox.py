@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, PrivateAttr, model_validator
-from typing import Dict, Any, Callable
+from typing import Dict, Any, Callable, Optional
 import ast
 
 from agent_smith.sandbox.SandboxConfig import SandboxConfig
@@ -9,7 +9,7 @@ from agent_smith.sandbox.guards.exceptions import SandboxSecurityViolation
 
 class Sandbox(BaseModel):
     config: SandboxConfig = Field(default_factory=SandboxConfig)
-    tools: Dict[str, Callable] = Field(default_factory=dict)
+    tools: Optional[Dict[str, Callable]] = Field(default=None)
 
     __namespace_dict: Dict[str, Any] = PrivateAttr()
 

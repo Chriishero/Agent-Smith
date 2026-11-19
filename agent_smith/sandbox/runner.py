@@ -28,12 +28,15 @@ class SandboxRunner(BaseModel):
         self.__process.start()
 
     def __worker(self, connection: Connection) -> None:
+        bridge = None
+        tools = None
+        if self.mcp_params is not None:
+            bridge = MCPBridge(
+                command=self.mcp_params[0], args=self.mcp_params[1]
+            )
+            tools = bridge.tools
+        sandbox = Sandbox(config=self.config, tools=tools)
         try:
-            tools = None
-            if self.mcp_params is not None:
-                bridge = MCPBridge(*self.mcp_params)
-                tools = bridge.tools
-            sandbox = Sandbox(config=self.config, tools=tools)
             while True:
                 try:
                     source = connection.recv()
@@ -44,6 +47,8 @@ class SandboxRunner(BaseModel):
                 except KeyboardInterrupt as e:
                     connection.send(("ok", e))
         finally:
+            if bridge is not None:
+                bridge.close()
             connection.close()
 
     def run(self, source: str | None) -> None:

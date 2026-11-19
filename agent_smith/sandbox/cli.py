@@ -1,5 +1,6 @@
 import argparse
 import json
+import shlex
 
 from agent_smith.sandbox.exceptions import (
     ArgumentNotAllowedError, SandboxQuittingException
@@ -35,6 +36,12 @@ def main() -> None:
                 with open(args.sandbox_configuration, "r") as f:
                     config = SandboxConfig(**json.load(f))
             except (FileNotFoundError, PermissionError) as e:
+                print(f"Cannot access file: {args.sandbox_configuration}: {e}")
+                return
+            except json.JSONDecodeError as e:
+                print(f"Invalid JSON in {args.sandbox_configuration}: {e}")
+                return
+            except Exception as e:
                 print(e)
                 return
         else:
@@ -45,15 +52,18 @@ def main() -> None:
                 "'mcp-server' argument is not allowed when \
                 'mcp-stdio' is specified"
             )
+        mcp_params = None
         if args.mcp_stdio is not None:
-            pass
+            params_list = shlex.split(args.mcp_stio)
+            if not params_list:
+                print("Error: --mcp-stdio needs a command to run")
+                return
+            mcp_params = (params_list[0], params_list[1:])
 
         elif args.mcp_server is not None:
             pass
 
-        tools = {}
-
-        with SandboxRunner(config=config, tools=tools) as runner:
+        with SandboxRunner(config=config, mcp_params=mcp_params) as runner:
             conditional_block = 0
             source = ""
             while True:
